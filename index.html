@@ -381,7 +381,7 @@
       </div>
       <div class="field">
         <label>Flat interest rate (p.a.)</label>
-        <input type="number" class="num-input" id="rate" value="3.20" step="0.05" min="0" oninput="onInput()">
+        <input type="number" class="num-input" id="rate" value="2.50" step="0.05" min="0" oninput="onInput()">
       </div>
     </div>
 
@@ -404,7 +404,7 @@
         </select>
       </div>
       <div class="field">
-        <label>Net premium <span class="val" id="netPremiumLabel">RM 0</span></label>
+        <label>Net premium (estimated) <span class="val" id="netPremiumLabel">RM 0</span></label>
         <div class="chip-note" id="ncdNote">after NCD, before add-ons</div>
       </div>
     </div>
@@ -413,24 +413,24 @@
     <div class="card">
       <div class="step-head">
         <div class="step-num">4</div>
-        <div><div class="step-title">Promotion</div><div class="step-sub">Rebate &amp; dealer discount</div></div>
+        <div><div class="step-title">Promotion</div><div class="step-sub">Monthly &amp; dealer promotion</div></div>
       </div>
       <div class="field">
-        <label>Promotion rebate</label>
+        <label>Monthly Promotion</label>
         <select class="premium-select" id="rebateSelect" onchange="onInput()">
-          <option value="none">No rebate</option>
-          <option value="full">Apply promotion rebate</option>
+          <option value="none">No promotion</option>
+          <option value="full">Apply promotion</option>
         </select>
         <div class="chip-note" id="rebateSub">No rebate on this variant</div>
       </div>
       <div class="field">
-        <label>Additional rebate (RM)</label>
+        <label>Dealer promotion (RM)</label>
         <input type="number" class="num-input" id="extraRebate" value="0" step="100" min="0" oninput="onInput()">
-        <div class="chip-note" id="extraRebateNote">Keyed in manually, e.g. dealer discount</div>
+        <div class="chip-note" id="extraRebateNote">Keyed in manually</div>
       </div>
       <div class="field">
         <label>Total promotion <span class="val" id="rebateAmtLabel">RM 0</span></label>
-        <div class="chip-note" id="totalPromoNote">Base rebate + additional rebate</div>
+        <div class="chip-note" id="totalPromoNote">Monthly promotion + dealer promotion</div>
       </div>
     </div>
 
@@ -442,7 +442,7 @@
 
       <!-- MONTHLY HERO CARD -->
       <div class="monthly-card">
-        <div class="monthly-label">Monthly instalment</div>
+        <div class="monthly-label">Monthly instalment (estimated) </div>
         <div class="monthly-value" id="statMonthly">RM 0</div>
         <div class="monthly-per"></div>
 
@@ -505,7 +505,7 @@
           <div class="s-val" id="statPremium">RM 0</div>
         </div>
         <div class="stat hl" style="grid-column:1/-1;">
-          <div class="s-label">Total OTR</div>
+          <div class="s-label">Total OTR (estimated)</div>
           <div class="s-val" id="statOTRPlusIns">RM 0</div>
         </div>
       </div>
@@ -531,7 +531,7 @@
 
 <div class="sticky-footer">
   <div class="sticky-inner">
-    <div class="sticky-monthly">Monthly instalment<b id="footerMonthly">RM 0</b></div>
+    <div class="sticky-monthly">Monthly instalment (estimated) <b id="footerMonthly">RM 0</b></div>
     <button class="btn primary" onclick="generateQuotation()">Generate Quotation</button>
   </div>
 </div>
@@ -674,10 +674,10 @@ function selectVariant(v){
     fallback.style.display = 'block';
   }
   document.getElementById('activePrice').innerHTML =
-    `<span>OTR</span><span>${fmt(v.OTR)}</span>`;
+    `<span>Total OTR (estimated)</span><span>${fmt(v.OTR)}</span>`;
   document.getElementById('selectedTitle').textContent = `${v.BRAND} ${v.MODEL} — ${v.VARIANT}`;
   document.getElementById('otrOverride').value = v.OTR.toFixed(0);
-  document.getElementById('rebateSub').textContent = v.REBATE>0 ? `RM ${v.REBATE.toLocaleString('en-MY')} promo rebate available` : 'No rebate on this variant';
+  document.getElementById('rebateSub').textContent = v.REBATE>0 ? `RM ${v.REBATE.toLocaleString('en-MY')} promotion available` : 'No promotion on this variant';
   const rebateSelect = document.getElementById('rebateSelect');
   rebateSelect.disabled = v.REBATE===0;
   rebateSelect.value = v.REBATE>0 ? rebateSelect.value : 'none';
@@ -711,12 +711,13 @@ function onInput(){
   const rebateAmt = baseRebate + extraRebate;
   document.getElementById('rebateAmtLabel').textContent = fmt(rebateAmt);
   document.getElementById('totalPromoNote').textContent =
-    `${fmt(baseRebate)} promo + ${fmt(extraRebate)} additional = ${fmt(rebateAmt)} total`;
-  document.getElementById('activePrice').innerHTML =
-    `<span>OTR</span><span>${fmt(otr)}${rebateAmt>0?'<span class="rebate-tag">-'+fmt(rebateAmt)+'</span>':''}</span>`;
+    `${fmt(baseRebate)} monthly promotion + ${fmt(extraRebate)} dealer promotion = ${fmt(rebateAmt)} total`;
 
   // Total OTR = OTR (w/o insurance) + insurance premium − total promotion
   const totalOTR = Math.max(otr + (ownInsurance ? 0 : netPremium) - rebateAmt, 0);
+
+  document.getElementById('activePrice').innerHTML =
+    `<span>Total OTR (estimated)</span><span>${fmt(totalOTR)}</span>`;
 
   // down payment % slider gives a target; amount financed is then rounded
   // DOWN to the nearest RM100, and down payment absorbs the rounding difference
