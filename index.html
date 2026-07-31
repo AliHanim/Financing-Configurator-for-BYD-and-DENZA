@@ -288,9 +288,61 @@
     header.topbar,.sticky-footer,.actions,.theme-switch{display:none !important;}
     body{padding-bottom:0;background:var(--bg);color:var(--text);}
   }
+
+  /* ============================= LOGIN GATE ============================= */
+  .login-gate{
+    position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(1000px 600px at 85% -10%, var(--accent-soft), transparent 60%),
+      var(--bg);
+    padding:20px;
+  }
+  .login-card{
+    width:100%;max-width:360px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius-lg);padding:34px 30px;text-align:center;
+    box-shadow:0 30px 60px -30px rgba(0,0,0,.5);
+  }
+  .login-logo{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:22px;}
+  .login-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;}
+  .login-sub{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.12em;color:var(--muted-2);text-transform:uppercase;margin-top:20px;margin-bottom:22px;}
+  .login-input{
+    width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);
+    padding:13px 14px;border-radius:var(--radius-sm);font-family:'JetBrains Mono',monospace;font-size:15px;
+    text-align:center;letter-spacing:.1em;margin-bottom:14px;
+  }
+  .login-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .login-error{font-size:12px;color:var(--danger);min-height:16px;margin-bottom:10px;font-family:'JetBrains Mono',monospace;}
+  .login-btn{
+    width:100%;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;padding:13px;
+    border-radius:999px;cursor:pointer;border:none;background:var(--accent);color:#fff;transition:all .2s ease;
+  }
+  [data-brand="DENZA"] .login-btn{color:#1B140A;}
+  .login-btn:hover{box-shadow:0 8px 24px var(--accent-soft);}
+  .login-shake{animation:loginShake .35s ease;}
+  @keyframes loginShake{
+    0%,100%{transform:translateX(0);} 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);}
+    60%{transform:translateX(-6px);} 80%{transform:translateX(6px);}
+  }
 </style>
 </head>
 <body data-brand="BYD">
+
+<!-- ============================= LOGIN GATE ============================= -->
+<div class="login-gate" id="loginGate">
+  <div class="login-card" id="loginCard">
+    <div class="login-logo">
+      <span class="logo-dot"></span>
+      <span class="login-title">Financing Configurator</span>
+    </div>
+    <div class="login-sub">BYD MALAYSIA · BUILD YOUR DREAMS</div>
+    <input type="password" class="login-input" id="loginInput" placeholder="Enter passcode" autocomplete="off"
+      onkeydown="if(event.key==='Enter') checkPasscode()">
+    <div class="login-error" id="loginError"></div>
+    <button class="login-btn" onclick="checkPasscode()">Unlock</button>
+  </div>
+</div>
+
+<div id="appContent" style="display:none;">
 
 <header class="topbar">
   <div class="topbar-inner">
@@ -535,6 +587,7 @@
     <button class="btn primary" onclick="generateQuotation()">Generate Quotation</button>
   </div>
 </div>
+</div><!-- /#appContent -->
 
 <script>
 // ══════════════════════════════════════════════════════════════════
@@ -893,7 +946,61 @@ function fireConfetti(){
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// LOGIN GATE (simple shared passcode)
+// ------------------------------------------------------------------
+// The passcode is stored below as a SHA-256 hash, not plain text, so
+// it isn't immediately visible to anyone glancing at "view source".
+// This is a lightweight deterrent for an internal tool, NOT real
+// security — anyone with dev-tools access could still bypass it.
+// For real access control, use Google sign-in instead.
+//
+// To change the passcode: open this page, press F12 → Console, and run:
+//   crypto.subtle.digest('SHA-256', new TextEncoder().encode('yourNewPasscode'))
+//     .then(b => console.log(Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')))
+// then paste the printed hash below as PASSCODE_HASH.
+// Default passcode is: BYD2026
+const PASSCODE_HASH = "431961db83e956f8b259fddd1c79f2f9e4fa348f496ab38ca4042ed660b129cf"; // sha256("BYD2026")
+const AUTH_KEY = 'bydDenzaAuthed';
+
+async function sha256(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function unlockApp(){
+  document.getElementById('loginGate').style.display = 'none';
+  document.getElementById('appContent').style.display = '';
+}
+
+async function checkPasscode(){
+  const input = document.getElementById('loginInput');
+  const errorEl = document.getElementById('loginError');
+  const card = document.getElementById('loginCard');
+  const hash = await sha256(input.value.trim());
+  if(hash === PASSCODE_HASH){
+    try{ localStorage.setItem(AUTH_KEY, '1'); }catch(e){}
+    unlockApp();
+  } else {
+    errorEl.textContent = 'Incorrect passcode — please try again.';
+    card.classList.remove('login-shake'); void card.offsetWidth; card.classList.add('login-shake');
+    input.value = '';
+    input.focus();
+  }
+}
+
+function initLoginGate(){
+  let authed = null;
+  try{ authed = localStorage.getItem(AUTH_KEY); }catch(e){}
+  if(authed === '1'){
+    unlockApp();
+  } else {
+    document.getElementById('loginInput').focus();
+  }
+}
+
 // init
+initLoginGate();
 initTheme();
 loadData();
 </script>
