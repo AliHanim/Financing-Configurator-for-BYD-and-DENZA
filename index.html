@@ -257,6 +257,23 @@
 
   /* action buttons */
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px;}
+
+  /* quotation modal */
+  .modal-overlay{position:fixed;inset:0;z-index:300;background:color-mix(in srgb, var(--bg) 75%, transparent);
+    backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px;}
+  .modal-overlay.open{display:flex;}
+  .modal-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);max-width:420px;width:100%;padding:26px;}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .modal-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;}
+  .modal-sub{font-size:12px;color:var(--muted-2);margin-bottom:18px;}
+  .modal-close{background:var(--bg);border:1px solid var(--line);color:var(--muted);border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:14px;flex-shrink:0;}
+  .modal-preview{background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:18px;font-size:12px;color:var(--muted);}
+  .modal-preview b{color:var(--text);display:block;font-family:'Space Grotesk',sans-serif;font-size:14px;margin-bottom:2px;}
+  .modal-status{font-size:12px;margin-top:12px;min-height:16px;}
+  .modal-status.err{color:var(--danger);}
+  .modal-status.ok{color:var(--success);}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;}
+  .modal-actions .btn{flex:1;justify-content:center;}
   .btn{
     font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;padding:12px 20px;
     border-radius:999px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--text);
@@ -541,11 +558,36 @@
   </div>
 </div>
 
+<!-- QUOTATION MODAL -->
+<div class="modal-overlay" id="quoteModal" onclick="if(event.target===this) closeQuotationModal()">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title">Generate quotation</div>
+      <button class="modal-close" onclick="closeQuotationModal()">✕</button>
+    </div>
+    <div class="modal-sub">Emails a PDF quotation to the customer, with vehicle &amp; financing details.</div>
+    <div class="modal-preview" id="quotePreview"></div>
+    <div class="field">
+      <label>Customer name</label>
+      <input type="text" class="num-input" id="quoteCustomerName" placeholder="e.g. Ahmad bin Ismail" style="font-family:'Inter',sans-serif;">
+    </div>
+    <div class="field">
+      <label>Customer email</label>
+      <input type="email" class="num-input" id="quoteCustomerEmail" placeholder="customer@email.com" style="font-family:'Inter',sans-serif;">
+    </div>
+    <div class="modal-status" id="quoteStatus"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeQuotationModal()">Cancel</button>
+      <button class="btn primary" id="quoteSendBtn" onclick="sendQuotation()">Send Quotation</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════════════════
 // DATA LAYER — UNCHANGED FROM ORIGINAL, DO NOT ALTER CALCULATIONS
 // ══════════════════════════════════════════════════════════════════
-const GAS_URL = "https://script.google.com/macros/s/AKfycbx1n0uCyWVMFEIXvFiRUgUfgdQKH9sPKOv8uYyeoXsfjunttZvmHvI8MyIsQtCdIe5d/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxt8OM7dJTWbzZ9QrL7YhCG2OsbjJtxgGU4c3To4nZuBoTBzC14yGY5D9Q0Az9Bqb2vjA/exec";
 
 let DATA = [];
 const FALLBACK_DATA = [{"MODEL":"SEAL 6","VARIANT":"DYNAMIC","SELLING PRICE":100000,"OTR":100770,"SUM_INSURED":100000,"BASIC_PREMIUM":3000,"REBATE":10000,"BRAND":"BYD"},
@@ -862,8 +904,88 @@ function initTheme(){
 
 // ── action buttons ──
 function generateQuotation(){
-  fireConfetti();
-  setTimeout(() => window.print(), 350);
+  if(!selected) return;
+  const preview = document.getElementById('quotePreview');
+  preview.innerHTML = `<b>${selected.BRAND} ${selected.MODEL} — ${selected.VARIANT}</b>
+    Total OTR: ${document.getElementById('statOTRPlusIns').textContent} · Monthly: ${document.getElementById('statMonthly').textContent} · Tenure: ${document.getElementById('tenureLabel').textContent}`;
+  document.getElementById('quoteCustomerName').value = '';
+  document.getElementById('quoteCustomerEmail').value = '';
+  const statusEl = document.getElementById('quoteStatus');
+  statusEl.textContent = '';
+  statusEl.className = 'modal-status';
+  document.getElementById('quoteModal').classList.add('open');
+}
+function closeQuotationModal(){
+  document.getElementById('quoteModal').classList.remove('open');
+}
+async function sendQuotation(){
+  if(!selected) return;
+  const name = document.getElementById('quoteCustomerName').value.trim();
+  const email = document.getElementById('quoteCustomerEmail').value.trim();
+  const statusEl = document.getElementById('quoteStatus');
+  const btn = document.getElementById('quoteSendBtn');
+
+  if(!name){
+    statusEl.textContent = 'Please enter the customer name.';
+    statusEl.className = 'modal-status err';
+    return;
+  }
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if(!emailOk){
+    statusEl.textContent = 'Please enter a valid email address.';
+    statusEl.className = 'modal-status err';
+    return;
+  }
+
+  // payload only mirrors already-computed, already-displayed figures —
+  // no new calculation happens here.
+  const payload = {
+    action: 'sendQuotation',
+    customerName: name,
+    customerEmail: email,
+    vehicle: `${selected.BRAND} ${selected.MODEL} — ${selected.VARIANT}`,
+    totalOTR: document.getElementById('statOTRPlusIns').textContent,
+    otrWoInsurance: document.getElementById('statOTR').textContent,
+    netPremium: document.getElementById('statPremium').textContent,
+    totalPromotion: document.getElementById('rebateAmtLabel').textContent,
+    downPayment: document.getElementById('statDP').textContent,
+    amountFinanced: document.getElementById('statFinanced').textContent,
+    interestRate: document.getElementById('rate').value + '%',
+    tenure: document.getElementById('tenureLabel').textContent,
+    totalInterest: document.getElementById('statInterest').textContent,
+    totalRepayment: document.getElementById('statRepay').textContent,
+    monthlyInstalment: document.getElementById('statMonthly').textContent
+  };
+
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Sending…';
+  statusEl.textContent = '';
+  statusEl.className = 'modal-status';
+
+  try{
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'}, // keeps this a CORS "simple request" for Apps Script
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(data && data.success){
+      statusEl.textContent = `Quotation sent to ${email}.`;
+      statusEl.className = 'modal-status ok';
+      fireConfetti();
+      setTimeout(closeQuotationModal, 1800);
+    } else {
+      throw new Error((data && data.error) || 'Unknown error');
+    }
+  } catch(err){
+    console.warn('Quotation send failed:', err);
+    statusEl.textContent = 'Could not send the quotation — please check your connection and try again.';
+    statusEl.className = 'modal-status err';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 function shareWhatsApp(){
   const name = selected ? `${selected.BRAND} ${selected.MODEL} ${selected.VARIANT}` : 'this vehicle';
