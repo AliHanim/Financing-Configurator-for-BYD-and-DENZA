@@ -358,7 +358,7 @@
       </div>
       <div class="field">
         <label>On-the-road price (editable)</label>
-        <input type="number" class="num-input" id="otrOverride" value="0" step="100" oninput="onInput()">
+        <input type="text" inputmode="numeric" class="num-input" id="otrOverride" value="0" oninput="formatOtrInput(this); onInput()">
       </div>
       <div class="step-caption" id="selectedTitle">Configure financing</div>
     </div>
@@ -430,7 +430,7 @@
       </div>
       <div class="field">
         <label>Total promotion <span class="val" id="rebateAmtLabel">RM 0</span></label>
-        <div class="chip-note" id="totalPromoNote">Monthly promotion + dealer promotion</div>
+        <div class="chip-note" id="totalPromoNote">Monthly promotion + additional promotion</div>
       </div>
     </div>
 
@@ -497,7 +497,7 @@
           <div class="s-val" id="statDP">RM 0</div>
         </div>
         <div class="stat">
-          <div class="s-label">OTR w/o insurance</div>
+          <div class="s-label">OTR w/o insurance (after promotion)</div>
           <div class="s-val" id="statOTR">RM 0</div>
         </div>
         <div class="stat">
@@ -515,7 +515,7 @@
     <div class="card chart-card">
       <div class="chart-title">Monthly payment vs. tenure</div>
       <div class="chart-sub">Same amount financed &amp; interest rate, compared across 5–9 year terms</div>
-      <svg id="tenureChart" width="100%" height="180" viewBox="0 0 600 180" preserveAspectRatio="none"></svg>
+      <svg id="tenureChart" width="100%" height="180" viewBox="0 0 600 180" style="aspect-ratio:600/180;height:auto;display:block;"></svg>
     </div>
 
     <!-- ACTIONS -->
@@ -527,6 +527,11 @@
     </div>
 
   </section>
+
+  <footer class="legal">
+    Figures shown are estimates for reference only and do not constitute a formal loan offer.<br>
+    Actual approval, rate, and terms are subject to the financier's assessment.
+  </footer>
 </div>
 
 <div class="sticky-footer">
@@ -676,7 +681,7 @@ function selectVariant(v){
   document.getElementById('activePrice').innerHTML =
     `<span>Total OTR (estimated)</span><span>${fmt(v.OTR)}</span>`;
   document.getElementById('selectedTitle').textContent = `${v.BRAND} ${v.MODEL} — ${v.VARIANT}`;
-  document.getElementById('otrOverride').value = v.OTR.toFixed(0);
+  document.getElementById('otrOverride').value = v.OTR.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   document.getElementById('rebateSub').textContent = v.REBATE>0 ? `RM ${v.REBATE.toLocaleString('en-MY')} promotion available` : 'No promotion on this variant';
   const rebateSelect = document.getElementById('rebateSelect');
   rebateSelect.disabled = v.REBATE===0;
@@ -687,12 +692,23 @@ function selectVariant(v){
   onInput();
 }
 
+// UI-only: live thousand-separator formatting for the OTR text input.
+// Keeps the cursor a sensible distance from the end while typing.
+function formatOtrInput(el){
+  const caretFromEnd = el.value.length - el.selectionStart;
+  const digitsOnly = el.value.replace(/[^\d]/g, '');
+  const formatted = digitsOnly ? Number(digitsOnly).toLocaleString('en-MY') : '';
+  el.value = formatted;
+  const pos = Math.max(formatted.length - caretFromEnd, 0);
+  el.setSelectionRange(pos, pos);
+}
+
 function onInput(){
   if(!selected) return;
   const dpPct = parseFloat(document.getElementById('dpPct').value);
   const tenureYears = parseInt(document.getElementById('tenure').value);
   const rate = parseFloat(document.getElementById('rate').value)/100;
-  let otr = parseFloat(document.getElementById('otrOverride').value) || selected.OTR;
+  let otr = parseFloat(String(document.getElementById('otrOverride').value).replace(/,/g,'')) || selected.OTR;
   const applyRebate = document.getElementById('rebateSelect').value === 'full' && selected.REBATE>0;
   const ncdVal = document.getElementById('ncd').value;
   const ownInsurance = ncdVal === 'own';
@@ -711,7 +727,7 @@ function onInput(){
   const rebateAmt = baseRebate + extraRebate;
   document.getElementById('rebateAmtLabel').textContent = fmt(rebateAmt);
   document.getElementById('totalPromoNote').textContent =
-    `${fmt(baseRebate)} monthly promotion + ${fmt(extraRebate)} dealer promotion = ${fmt(rebateAmt)} total`;
+    `${fmt(baseRebate)} monthly promotion + ${fmt(extraRebate)} additional = ${fmt(rebateAmt)} total`;
 
   // Total OTR = OTR (w/o insurance) + insurance premium − total promotion
   const totalOTR = Math.max(otr + (ownInsurance ? 0 : netPremium) - rebateAmt, 0);
@@ -743,7 +759,7 @@ function onInput(){
   document.getElementById('statInterest').textContent = fmt(totalInterest);
   document.getElementById('statRepay').textContent = fmt(totalRepay);
   document.getElementById('statDP').textContent = fmt(dpAmount);
-  document.getElementById('statOTR').textContent = fmt(otr);
+  document.getElementById('statOTR').textContent = fmt(Math.max(otr - rebateAmt, 0));
   document.getElementById('statPremium').textContent = ownInsurance ? 'own insurance' : fmt(netPremium);
   document.getElementById('statOTRPlusIns').textContent = fmt(totalOTR);
 
@@ -808,7 +824,7 @@ function renderTenureChart(financed, rate){
     return {y, monthly};
   });
   const maxMonthly = Math.max(...points.map(p=>p.monthly), 1);
-  const w = 600, h = 180, padL = 46, padB = 26, padT = 14, padR = 10;
+  const w = 600, h = 180, padL = 46, padB = 26, padT = 34, padR = 10;
   const barW = (w - padL - padR) / tenures.length * 0.55;
   const gap = (w - padL - padR) / tenures.length;
 
@@ -821,10 +837,10 @@ function renderTenureChart(financed, rate){
     bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="5"
       fill="${isCurrent ? 'var(--accent)' : 'var(--line)'}" style="transition:height .4s ease,y .4s ease;">
       <title>${p.y} years — ${fmt(p.monthly)}/month</title></rect>`;
-    bars += `<text x="${(x+barW/2).toFixed(1)}" y="${(y-6).toFixed(1)}" text-anchor="middle" font-family="JetBrains Mono, monospace"
-      font-size="10" style="fill:${isCurrent?'var(--accent-2)':'var(--muted-2)'}">${fmt(p.monthly).replace('RM ','')}</text>`;
-    labels += `<text x="${(x+barW/2).toFixed(1)}" y="${h-8}" text-anchor="middle" font-family="JetBrains Mono, monospace"
-      font-size="10.5" style="fill:var(--muted)">${p.y}y</text>`;
+    bars += `<text x="${(x+barW/2).toFixed(1)}" y="${(y-8).toFixed(1)}" text-anchor="middle" font-family="'Space Grotesk','Inter',sans-serif"
+      font-size="13" font-weight="700" style="fill:${isCurrent?'var(--accent-2)':'var(--muted)'};font-variant-numeric:tabular-nums;">${fmt(p.monthly).replace('RM ','')}</text>`;
+    labels += `<text x="${(x+barW/2).toFixed(1)}" y="${h-8}" text-anchor="middle" font-family="'Space Grotesk','Inter',sans-serif"
+      font-size="12" font-weight="600" style="fill:var(--muted);font-variant-numeric:tabular-nums;">${p.y}y</text>`;
   });
   svg.innerHTML = bars + labels;
 }
@@ -866,7 +882,7 @@ function resetCalculator(){
   document.getElementById('rebateSelect').value = 'none';
   document.getElementById('ncd').value = '0';
   if(selected){
-    document.getElementById('otrOverride').value = selected.OTR.toFixed(0);
+    document.getElementById('otrOverride').value = selected.OTR.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
   onInput();
 }
@@ -897,6 +913,13 @@ function fireConfetti(){
 // init
 initTheme();
 loadData();
+
+// safety net: if the SVG chart first rendered before the web font finished
+// loading, it can silently fall back to a hard-to-read system font. Redraw
+// once the font is confirmed ready (no calculation change, purely visual).
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(() => { if(selected) onInput(); });
+}
 </script>
 </body>
 </html>
